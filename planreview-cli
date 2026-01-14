@@ -1,0 +1,36 @@
+#!/bin/bash
+# planreview-cli - Open a file in PlanReview and wait for completion
+
+if [ -z "$1" ]; then
+    echo "Usage: planreview <file.md>"
+    exit 1
+fi
+
+FILE="$1"
+ABSOLUTE_PATH="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
+DONE_FILE="${ABSOLUTE_PATH%.md}.done"
+
+# Remove any existing done file
+rm -f "$DONE_FILE"
+
+# Open PlanReview
+open -a "Plan Review" "$ABSOLUTE_PATH"
+
+echo "Waiting for review of: $FILE"
+echo "Press Approve or Request Changes in PlanReview to continue..."
+
+# Wait for .done file to appear
+while [ ! -f "$DONE_FILE" ]; do
+    sleep 0.5
+done
+
+# Read and output the result
+cat "$DONE_FILE"
+
+# Check if there are comments
+COMMENTS_FILE="${ABSOLUTE_PATH%.md}.comments.json"
+if [ -f "$COMMENTS_FILE" ]; then
+    echo ""
+    echo "Comments:"
+    cat "$COMMENTS_FILE"
+fi
