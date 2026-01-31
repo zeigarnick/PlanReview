@@ -73,20 +73,83 @@ extension View {
     }
 }
 
-/// Main content view for a single review document (markdown viewer + comments)
-/// Note: Toolbar is now managed by ReviewTabView in MainWindowView.swift
 struct ContentView: View {
-    @EnvironmentObject var document: ReviewDocument
+    @EnvironmentObject var reviewState: ReviewState
+    @State private var showComments = false
     
     var body: some View {
-        MarkdownWebView()
+        HStack(spacing: 0) {
+            MarkdownWebView()
+                .frame(maxWidth: .infinity)
+            
+            if showComments {
+                Divider()
+                CommentsSidebar()
+                    .frame(width: 320)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                if let path = reviewState.filePath {
+                    Text(URL(fileURLWithPath: path).lastPathComponent)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                }
+            }
+            
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Comments toggle with shortcut hint
+                Button {
+                    showComments.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showComments ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
+                        if !reviewState.comments.isEmpty {
+                            Text("\(reviewState.comments.count)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        Text("⌘/")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .keyboardShortcut("/", modifiers: .command)
+                .help("Toggle comments sidebar ⌘/")
+                
+                if !reviewState.comments.isEmpty {
+                    Button("Request Changes") {
+                        reviewState.requestChanges()
+                    }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                }
+                
+                Button {
+                    reviewState.approve()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Submit")
+                        Text("⌘↵")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+            }
+        }
+        .onAppear {
+            reviewState.loadFromCommandLine()
+        }
     }
 }
 
 // MARK: - Markdown WebView
 
 struct MarkdownWebView: View {
-    @EnvironmentObject var document: ReviewDocument
+    @EnvironmentObject var reviewState: ReviewState
     @State private var selectedText: String = ""
     @State private var showCommentPopover: Bool = false
     @State private var commentText: String = ""
@@ -96,9 +159,9 @@ struct MarkdownWebView: View {
     var body: some View {
         // Build the attributed string with markdown rendering and comment highlights
         let renderer = MarkdownRenderer()
-        let baseAttributed = renderer.render(document.markdownContent)
+        let baseAttributed = renderer.render(reviewState.markdownContent)
         let highlighter = CommentHighlighter()
-        let highlighted = highlighter.applyHighlights(to: baseAttributed, comments: document.comments)
+        let highlighted = highlighter.applyHighlights(to: baseAttributed, comments: reviewState.comments)
         
         ZStack(alignment: .topLeading) {
             MarkdownTextView(
@@ -134,8 +197,8 @@ struct MarkdownWebView: View {
                     isEditing: false,
                     onSubmit: {
                         if !commentText.isEmpty && !pendingSelection.isEmpty {
-                            document.selectedText = pendingSelection  // Use snapshot
-                            document.addComment(commentText)
+                            reviewState.selectedText = pendingSelection  // Use snapshot
+                            reviewState.addComment(commentText)
                             commentText = ""
                             showCommentPopover = false
                             pendingSelection = ""
@@ -153,6 +216,9 @@ struct MarkdownWebView: View {
             }
             
             // Edit comment popover (reuses same component)
+            // Note: editingComment is set via onEditComment which is no longer available
+            // from MarkdownTextView. This will need to be handled via a different mechanism
+            // (e.g., comments sidebar) in a future task.
             if let comment = editingComment {
                 CommentPopover(
                     selectedText: comment.selectedText,
@@ -161,13 +227,13 @@ struct MarkdownWebView: View {
                     isEditing: true,
                     onSubmit: {
                         if !commentText.isEmpty {
-                            document.updateComment(comment, newText: commentText)
+                            reviewState.updateComment(comment, newText: commentText)
                         }
                         commentText = ""
                         editingComment = nil
                     },
                     onDelete: {
-                        document.removeComment(comment)
+                        reviewState.removeComment(comment)
                         commentText = ""
                         editingComment = nil
                     },

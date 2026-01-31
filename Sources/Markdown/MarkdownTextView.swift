@@ -70,9 +70,6 @@ struct MarkdownTextView: NSViewRepresentable {
         
         scrollView.documentView = textView
         
-        // Set initial content
-        textView.textStorage?.setAttributedString(attributedString)
-        
         return scrollView
     }
     

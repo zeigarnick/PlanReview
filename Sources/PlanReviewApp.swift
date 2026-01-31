@@ -4,12 +4,12 @@ import UniformTypeIdentifiers
 @main
 struct PlanReviewApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var tabManager = TabManager()
+    @StateObject private var reviewState = ReviewState()
     
     var body: some Scene {
         WindowGroup {
-            MainWindowView()
-                .environmentObject(tabManager)
+            ContentView()
+                .environmentObject(reviewState)
                 .frame(minWidth: 900, minHeight: 700)
                 .preferredColorScheme(.dark)
                 .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -33,37 +33,6 @@ struct PlanReviewApp: App {
                 }
                 .keyboardShortcut("k", modifiers: .command)
             }
-            
-            // Tab navigation commands
-            CommandGroup(after: .toolbar) {
-                Divider()
-                
-                Button("Next Tab") {
-                    tabManager.selectNextTab()
-                }
-                .keyboardShortcut("]", modifiers: .command)
-                .disabled(tabManager.documents.count < 2)
-                
-                Button("Previous Tab") {
-                    tabManager.selectPreviousTab()
-                }
-                .keyboardShortcut("[", modifiers: .command)
-                .disabled(tabManager.documents.count < 2)
-                
-                Divider()
-                
-                // Direct tab access like Ghostty/Safari: ⌘1 through ⌘9
-                ForEach(0..<min(9, tabManager.documents.count), id: \.self) { index in
-                    Button("Tab \(index + 1): \(tabManager.documents[index].filename)") {
-                        tabManager.selectTab(at: index)
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                }
-            }
-        }
-        .onChange(of: tabManager.documents.count) { oldValue, newValue in
-            // Wire up AppDelegate reference when TabManager is initialized
-            appDelegate.tabManager = tabManager
         }
     }
     
@@ -75,7 +44,11 @@ struct PlanReviewApp: App {
         panel.message = "Select a Markdown file to review"
         
         if panel.runModal() == .OK, let url = panel.url {
-            tabManager.openDocument(at: url.path)
+            NotificationCenter.default.post(
+                name: .openPlanFile,
+                object: nil,
+                userInfo: ["path": url.path]
+            )
         }
     }
     
@@ -88,20 +61,6 @@ struct PlanReviewApp: App {
                   url.pathExtension == "md" else { return }
             
             DispatchQueue.main.async {
-                tabManager.openDocument(at: url.path)
-            }
-        }
-        return true
-    }
-}
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var tabManager: TabManager?
-    
-    func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            if url.scheme == "planreview" || url.isFileURL {
-                // Post notification that TabManager listens to
                 NotificationCenter.default.post(
                     name: .openPlanFile,
                     object: nil,
@@ -109,14 +68,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
         }
+        return true
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first else { return }
+        
+        // Handle both planreview:// URLs and file URLs
+        if url.scheme == "planreview" {
+            NotificationCenter.default.post(
+                name: .openPlanFile,
+                object: nil,
+                userInfo: ["path": url.path]
+            )
+        } else if url.isFileURL {
+            NotificationCenter.default.post(
+                name: .openPlanFile,
+                object: nil,
+                userInfo: ["path": url.path]
+            )
+        }
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Register as handler for .md files
         NSApp.servicesProvider = self
-    }
-    
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
     }
 }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CommentsSidebar: View {
-    @EnvironmentObject var document: ReviewDocument
+    @EnvironmentObject var reviewState: ReviewState
     
     var body: some View {
         VStack(spacing: 0) {
@@ -10,8 +10,8 @@ struct CommentsSidebar: View {
                 Text("Comments")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                if !document.comments.isEmpty {
-                    Text("\(document.comments.count)")
+                if !reviewState.comments.isEmpty {
+                    Text("\(reviewState.comments.count)")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
@@ -25,7 +25,7 @@ struct CommentsSidebar: View {
             
             Divider()
             
-            if document.comments.isEmpty {
+            if reviewState.comments.isEmpty {
                 EmptyCommentsView()
             } else {
                 CommentsListView()
@@ -57,14 +57,14 @@ struct EmptyCommentsView: View {
 }
 
 struct CommentsListView: View {
-    @EnvironmentObject var document: ReviewDocument
+    @EnvironmentObject var reviewState: ReviewState
     
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(document.comments) { comment in
+                ForEach(reviewState.comments) { comment in
                     CommentRow(comment: comment)
-                    if comment.id != document.comments.last?.id {
+                    if comment.id != reviewState.comments.last?.id {
                         Divider().padding(.leading, 16)
                     }
                 }
@@ -75,7 +75,7 @@ struct CommentsListView: View {
 
 struct CommentRow: View {
     let comment: Comment
-    @EnvironmentObject var document: ReviewDocument
+    @EnvironmentObject var reviewState: ReviewState
     @State private var isHovered = false
     @State private var isDeleteHovered = false
     
@@ -111,7 +111,7 @@ struct CommentRow: View {
             
             // Delete button - with hover background
             Button {
-                document.removeComment(comment)
+                reviewState.removeComment(comment)
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 12))
