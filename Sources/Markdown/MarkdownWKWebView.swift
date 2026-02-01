@@ -550,12 +550,23 @@ struct MarkdownWKWebView: NSViewRepresentable {
     }
     
     private func escapeJS(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
-            .replacingOccurrences(of: "\t", with: "\\t")
+        // Use JSONEncoder to properly escape all special characters for JS
+        guard let data = try? JSONEncoder().encode(string),
+              let jsonString = String(data: data, encoding: .utf8),
+              jsonString.count >= 2 else {
+            // Fallback to manual escaping if JSON encoding fails
+            return string
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\t", with: "\\t")
+                .replacingOccurrences(of: "/", with: "\\/")
+                .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+                .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        }
+        // JSONEncoder wraps in quotes, strip them since we add our own
+        return String(jsonString.dropFirst().dropLast())
     }
     
     // MARK: - Coordinator
