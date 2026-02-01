@@ -1,25 +1,12 @@
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 
 # Xcode
 *.xcodeproj/
 *.xcworkspace/
 xcuserdata/
 DerivedData/
-*.pbxuser
-*.mode1v3
-*.mode2v3
-*.perspectivev3
-!default.pbxuser
-!default.mode1v3
-!default.mode2v3
-!default.perspectivev3
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
 
 # macOS
 .DS_Store
@@ -27,8 +14,34 @@ DerivedData/
 .LSOverride
 ._*
 
+# App binary (built artifact - not tracked)
+PlanReview.app/Contents/MacOS/PlanReview
+PlanReview.app/Contents/_CodeSignature/
+
+# AI Agent Config Directories (local to each user)
+.opencode/
+.claude/
+
 # IDE
 .idea/
 .vscode/
 *.swp
+*.swo
 *~
+
+# Security - Never track secrets
+*.p12
+*.pem
+*.key
+*.cer
+.env
+.env.*
+!.env.example
+credentials.json
+secrets.json
+*.keychain
+*.keychain-db
+
+# Local development
+node_modules/
+*.log
