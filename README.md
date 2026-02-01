@@ -101,7 +101,7 @@ Agent receives ← CLI unblocks with result ← .done file created
 {
   "permissions": {
     "allow": [
-      "Bash(planreview:*)"
+      "Bash(planreview *)"
     ]
   }
 }
@@ -152,6 +152,27 @@ Codex discovers `AGENTS.md` files at:
 
 ### OpenCode
 
+**Option A: Native Tool (Recommended)**
+
+Add a custom `submit_plan` tool to your OpenCode configuration. The tool description is self-documenting, so no AGENTS.md instructions are needed.
+
+**Option B: CLI via Bash**
+
+Alternatively, use the CLI through bash permissions.
+
+Add CLI permission in `opencode.json` (project root):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "planreview *": "allow"
+    }
+  }
+}
+```
+
 Add workflow instructions to your project's `AGENTS.md`:
 
 ```markdown
@@ -166,19 +187,6 @@ For implementation plans, submit for human review before coding:
 5. If changes requested, read `.comments.json` and revise
 
 The command opens a native macOS app for review. Do not timeout.
-```
-
-Add CLI permission in `.opencode/config.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permissions": {
-    "allow": {
-      "bash": ["planreview *"]
-    }
-  }
-}
 ```
 
 ### Google Gemini CLI
