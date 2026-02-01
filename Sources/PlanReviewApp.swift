@@ -15,7 +15,9 @@ struct PlanReviewApp: App {
                 .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                     handleDrop(providers: providers)
                 }
+                .handlesExternalEvents(preferring: Set(["*"]), allowing: Set(["*"]))  // Reuse this window
         }
+        .handlesExternalEvents(matching: Set(["*"]))  // Route all external events to existing window
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unifiedCompact)
         .commands {

@@ -16,6 +16,7 @@ struct MainWindowView: View {
             // Content area
             if let document = tabManager.selectedDocument {
                 ReviewTabView(document: document, showComments: $showComments)
+                    .id(document.id)  // Force view recreation when switching tabs
             } else {
                 EmptyStateView()
             }
