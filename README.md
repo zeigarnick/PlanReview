@@ -75,23 +75,83 @@ When you click **Submit** or **Request Changes** in the app:
 
 ## AI Agent Integration
 
-PlanReview integrates with AI coding agents via the CLI. The agent runs `planreview <file>`, the command blocks until you approve or request changes, and the agent reads the result.
+PlanReview integrates with AI coding agents. The agent writes a plan, submits it for review, blocks until you approve or request changes, and reads the result.
 
 ### How It Works
 
 ```
-Agent writes plan → runs `planreview plan.md` → BLOCKS
-                                                  ↓
-                              You review in native macOS app
-                                                  ↓
-                              Click "Submit" or "Request Changes"
-                                                  ↓
-Agent receives ← CLI unblocks with result ← .done file created
+Agent writes plan → submits for review → BLOCKS
+                                           ↓
+                         You review in native macOS app
+                                           ↓
+                         Click "Submit" or "Request Changes"
+                                           ↓
+Agent receives ← tool/CLI unblocks with result ← .done file created
 ```
 
 **Output files:**
 - `plan.done` - Created on submit/request changes, contains result status
 - `plan.comments.json` - Created if you added inline comments
+
+### OpenCode
+
+**Option A: Native Tool (Recommended)**
+
+Copy the custom tool to your global OpenCode tools directory:
+
+```bash
+mkdir -p ~/.config/opencode/tools
+cp .opencode/tools/submit_plan.ts ~/.config/opencode/tools/
+```
+
+Then add workflow instructions to your `AGENTS.md` or your agent's prompt:
+
+```markdown
+## Plan Review Workflow
+
+Before implementing multi-step features, submit your plan for human review:
+
+1. Write the plan to a markdown file
+2. Call the `submit_plan` tool with the absolute file path
+3. **Wait for the result** - the tool blocks until the user responds
+4. If approved, proceed with implementation
+5. If changes requested, read the comments in the response and revise
+
+The submit_plan tool opens a native macOS review app. Do not timeout or cancel it.
+```
+
+**Option B: CLI via Bash**
+
+Alternatively, use the CLI through bash permissions.
+
+Add CLI permission in `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "planreview *": "allow"
+    }
+  }
+}
+```
+
+Add workflow instructions to your `AGENTS.md` or agent prompt:
+
+```markdown
+## Plan Review Workflow
+
+For implementation plans, submit for human review before coding:
+
+1. Write the plan to a markdown file
+2. Run: `planreview <path-to-plan.md>`
+3. Wait for the command to complete (it blocks until user responds)
+4. Exit 0 = approved, Exit 1 = changes requested
+5. If changes requested, read `.comments.json` and revise
+
+The command opens a native macOS app for review. Do not timeout.
+```
 
 ### Claude Code
 
@@ -107,15 +167,15 @@ Agent receives ← CLI unblocks with result ← .done file created
 }
 ```
 
-**Step 2: Add workflow instructions** to `CLAUDE.md`:
+**Step 2: Add workflow instructions** to `CLAUDE.md` or your agent prompt:
 
 ```markdown
 ## Plan Review Workflow
 
 Before implementing multi-step features, submit your plan for human review:
 
-1. Write the plan to `.claude/plans/<feature>.md`
-2. Run: `planreview .claude/plans/<feature>.md`
+1. Write the plan to a markdown file
+2. Run: `planreview <path-to-plan.md>`
 3. **Wait for the command to complete** - it blocks until the user responds
 4. Check the exit status:
    - Exit 0 = approved, proceed with implementation
@@ -127,15 +187,15 @@ Before implementing multi-step features, submit your plan for human review:
 
 ### OpenAI Codex CLI
 
-Add to your project's `AGENTS.md`:
+Add workflow instructions to your `AGENTS.md` or agent prompt:
 
 ```markdown
 ## Plan Review Workflow
 
 Before implementing any multi-step feature:
 
-1. Write a detailed implementation plan to `plans/<feature>.md`
-2. Run: `planreview plans/<feature>.md`
+1. Write a detailed implementation plan to a markdown file
+2. Run: `planreview <path-to-plan.md>`
 3. **Wait for the command to complete** - it blocks until the user responds
 4. If the command exits with status 1, changes were requested:
    - Read `<plan>.comments.json` for inline feedback
@@ -150,48 +210,9 @@ Codex discovers `AGENTS.md` files at:
 - `<project-root>/AGENTS.md` (project)
 - `<subdirectory>/AGENTS.md` (nested overrides)
 
-### OpenCode
-
-**Option A: Native Tool (Recommended)**
-
-Add a custom `submit_plan` tool to your OpenCode configuration. The tool description is self-documenting, so no AGENTS.md instructions are needed.
-
-**Option B: CLI via Bash**
-
-Alternatively, use the CLI through bash permissions.
-
-Add CLI permission in `opencode.json` (project root):
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "bash": {
-      "planreview *": "allow"
-    }
-  }
-}
-```
-
-Add workflow instructions to your project's `AGENTS.md`:
-
-```markdown
-## Plan Review Workflow
-
-For implementation plans, submit for human review before coding:
-
-1. Write the plan to `docs/plans/<feature>.md`
-2. Run: `planreview docs/plans/<feature>.md`
-3. Wait for the command to complete (it blocks until user responds)
-4. Exit 0 = approved, Exit 1 = changes requested
-5. If changes requested, read `.comments.json` and revise
-
-The command opens a native macOS app for review. Do not timeout.
-```
-
 ### Google Gemini CLI
 
-Add to your project's `GEMINI.md`:
+Add workflow instructions to your `GEMINI.md` or agent prompt:
 
 ```markdown
 ## Plan Review Tool
