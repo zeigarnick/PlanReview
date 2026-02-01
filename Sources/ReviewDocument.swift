@@ -7,50 +7,48 @@ struct Comment: Identifiable, Codable {
     var selectedRange: Range<String.Index>?
     var selectedText: String
     var lineNumber: Int
+    var charOffset: Int?
     var resolved: Bool = false
     
     enum CodingKeys: String, CodingKey {
-        case id, text, selectedText, lineNumber, resolved
+        case id, text, selectedText, lineNumber, charOffset, resolved
     }
     
-    init(id: UUID = UUID(), text: String, selectedText: String, lineNumber: Int) {
+    init(id: UUID = UUID(), text: String, selectedText: String, lineNumber: Int, charOffset: Int? = nil) {
         self.id = id
         self.text = text
         self.selectedText = selectedText
         self.lineNumber = lineNumber
+        self.charOffset = charOffset
     }
 }
 
+/// Per-tab review model - each tab has its own independent ReviewDocument
 @MainActor
-class ReviewState: ObservableObject {
-    @Published var filePath: String?
+class ReviewDocument: ObservableObject, Identifiable {
+    let id = UUID()
+    let filePath: String
+    
     @Published var markdownContent: String = ""
     @Published var comments: [Comment] = []
     @Published var selectedText: String = ""
     @Published var selectedLineNumber: Int = 0
+    @Published var selectedCharOffset: Int = 0
     @Published var isAddingComment: Bool = false
     @Published var hasUnsavedChanges: Bool = false
     
-    private var cancellables = Set<AnyCancellable>()
-    
-    init() {
-        setupNotifications()
+    var filename: String {
+        URL(fileURLWithPath: filePath).lastPathComponent
     }
     
-    private func setupNotifications() {
-        NotificationCenter.default.publisher(for: .openPlanFile)
-            .compactMap { $0.userInfo?["path"] as? String }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] path in
-                self?.loadFile(at: path)
-            }
-            .store(in: &cancellables)
+    init(filePath: String) {
+        self.filePath = filePath
+        loadFile()
     }
     
-    func loadFile(at path: String) {
-        self.filePath = path
+    private func loadFile() {
         do {
-            self.markdownContent = try String(contentsOfFile: path, encoding: .utf8)
+            self.markdownContent = try String(contentsOfFile: filePath, encoding: .utf8)
             loadComments()
             self.hasUnsavedChanges = false
         } catch {
@@ -58,10 +56,16 @@ class ReviewState: ObservableObject {
         }
     }
     
-    func loadFromCommandLine() {
-        let args = CommandLine.arguments
-        if args.count > 1 {
-            loadFile(at: args[1])
+    private func loadComments() {
+        let commentsPath = filePath.replacingOccurrences(of: ".md", with: ".comments.json")
+        
+        if FileManager.default.fileExists(atPath: commentsPath) {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: commentsPath))
+                comments = try JSONDecoder().decode([Comment].self, from: data)
+            } catch {
+                print("Error loading comments: \(error)")
+            }
         }
     }
     
@@ -69,7 +73,8 @@ class ReviewState: ObservableObject {
         let comment = Comment(
             text: text,
             selectedText: selectedText,
-            lineNumber: selectedLineNumber
+            lineNumber: selectedLineNumber,
+            charOffset: selectedCharOffset
         )
         comments.append(comment)
         hasUnsavedChanges = true
@@ -94,20 +99,6 @@ class ReviewState: ObservableObject {
         hasUnsavedChanges = true
     }
     
-    private func loadComments() {
-        guard let path = filePath else { return }
-        let commentsPath = path.replacingOccurrences(of: ".md", with: ".comments.json")
-        
-        if FileManager.default.fileExists(atPath: commentsPath) {
-            do {
-                let data = try Data(contentsOf: URL(fileURLWithPath: commentsPath))
-                comments = try JSONDecoder().decode([Comment].self, from: data)
-            } catch {
-                print("Error loading comments: \(error)")
-            }
-        }
-    }
-    
     func approve() {
         saveAndSignal(approved: true)
     }
@@ -116,22 +107,22 @@ class ReviewState: ObservableObject {
         saveAndSignal(approved: false)
     }
     
+    /// Saves the review and writes the .done signal file
+    /// Does NOT terminate the app - TabManager handles lifecycle
     private func saveAndSignal(approved: Bool) {
-        guard let path = filePath else { return }
-        
         do {
             // Save updated markdown
-            try markdownContent.write(toFile: path, atomically: true, encoding: .utf8)
+            try markdownContent.write(toFile: filePath, atomically: true, encoding: .utf8)
             
             // Save comments
-            let commentsPath = path.replacingOccurrences(of: ".md", with: ".comments.json")
+            let commentsPath = filePath.replacingOccurrences(of: ".md", with: ".comments.json")
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let commentsData = try encoder.encode(comments)
             try commentsData.write(to: URL(fileURLWithPath: commentsPath))
             
             // Write completion signal
-            let donePath = path.replacingOccurrences(of: ".md", with: ".done")
+            let donePath = filePath.replacingOccurrences(of: ".md", with: ".done")
             let status = approved ? "approved" : "changes_requested"
             let signal = """
             {
@@ -143,11 +134,6 @@ class ReviewState: ObservableObject {
             try signal.write(toFile: donePath, atomically: true, encoding: .utf8)
             
             hasUnsavedChanges = false
-            
-            // Quit the app after saving
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                NSApplication.shared.terminate(nil)
-            }
         } catch {
             print("Error saving: \(error)")
         }

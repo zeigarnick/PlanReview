@@ -37,8 +37,9 @@ struct MarkdownTextView: NSViewRepresentable {
         textContainer.widthTracksTextView = true
         textContainer.heightTracksTextView = false
         
-        // Create NSTextView with TextKit 2 for better performance
-        let textView = NSTextView(usingTextLayoutManager: true)
+        // Create NSTextView with TextKit 1 for reliable table rendering
+        // TextKit 2 has async layout timing issues that break monospaced tables
+        let textView = NSTextView(usingTextLayoutManager: false)
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.drawsBackground = true
@@ -69,6 +70,10 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         
         scrollView.documentView = textView
+        
+        // Set initial content and force layout for correct table rendering
+        textView.textStorage?.setAttributedString(attributedString)
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
         
         return scrollView
     }

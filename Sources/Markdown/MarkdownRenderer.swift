@@ -205,64 +205,90 @@ struct MarkdownRenderer: MarkupVisitor {
         ])
     }
     
-    // MARK: - Tables (Monospaced rendering)
+    // MARK: - Tables (Visual rendering with NSTextTable)
     mutating func visitTable(_ table: Table) -> NSAttributedString {
-        // Render tables in monospaced font for alignment
-        var rows: [[String]] = []
+        let result = NSMutableAttributedString()
         
-        // Collect header
+        // Collect all rows (header + body)
+        var allRows: [(cells: [String], isHeader: Bool)] = []
+        
+        // Header row
         let head = table.head
-        var headerRow: [String] = []
+        var headerCells: [String] = []
         for cell in head.cells {
-            headerRow.append(cell.plainText)
+            headerCells.append(cell.plainText)
         }
-        rows.append(headerRow)
+        allRows.append((cells: headerCells, isHeader: true))
         
-        // Collect body rows
+        // Body rows
         for row in table.body.rows {
-            var bodyRow: [String] = []
+            var bodyCells: [String] = []
             for cell in row.cells {
-                bodyRow.append(cell.plainText)
+                bodyCells.append(cell.plainText)
             }
-            rows.append(bodyRow)
+            allRows.append((cells: bodyCells, isHeader: false))
         }
         
-        // Calculate column widths
-        var widths: [Int] = []
-        for row in rows {
-            for (i, cell) in row.enumerated() {
-                if i >= widths.count {
-                    widths.append(cell.count)
+        guard !allRows.isEmpty, let columnCount = allRows.first?.cells.count, columnCount > 0 else {
+            return result
+        }
+        
+        // Create NSTextTable
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = columnCount
+        textTable.setContentWidth(100, type: .percentageValueType)
+        textTable.hidesEmptyCells = false
+        
+        // Table border styling
+        let borderColor = NSColor.separatorColor
+        
+        // Build each cell
+        for (rowIndex, rowData) in allRows.enumerated() {
+            for (colIndex, cellText) in rowData.cells.enumerated() {
+                // Create text block for this cell
+                let textBlock = NSTextTableBlock(table: textTable, startingRow: rowIndex, rowSpan: 1, startingColumn: colIndex, columnSpan: 1)
+                
+                // Cell styling
+                textBlock.setWidth(0.5, type: .absoluteValueType, for: .border)
+                textBlock.setBorderColor(borderColor)
+                textBlock.setWidth(8, type: .absoluteValueType, for: .padding)
+                
+                // Alternating row background (skip header)
+                if rowData.isHeader {
+                    textBlock.backgroundColor = NSColor(white: 0.15, alpha: 1.0)
+                } else if rowIndex % 2 == 0 {
+                    textBlock.backgroundColor = NSColor(white: 0.12, alpha: 1.0)
                 } else {
-                    widths[i] = max(widths[i], cell.count)
+                    textBlock.backgroundColor = NSColor(white: 0.10, alpha: 1.0)
                 }
+                
+                // Create paragraph style with the text block
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.textBlocks = [textBlock]
+                
+                // Font based on header or body
+                let font: NSFont
+                if rowData.isHeader {
+                    font = theme.boldFont
+                } else {
+                    font = theme.baseFont
+                }
+                
+                // Build cell content (add newline to complete the cell)
+                let cellContent = cellText + "\n"
+                let cellAttributedString = NSMutableAttributedString(string: cellContent, attributes: [
+                    .font: font,
+                    .foregroundColor: theme.textColor,
+                    .paragraphStyle: paragraphStyle
+                ])
+                
+                result.append(cellAttributedString)
             }
         }
         
-        // Build table string
-        var tableString = ""
-        for (rowIndex, row) in rows.enumerated() {
-            var line = "| "
-            for (i, cell) in row.enumerated() {
-                let padded = cell.padding(toLength: widths[i], withPad: " ", startingAt: 0)
-                line += padded + " | "
-            }
-            tableString += line.trimmingCharacters(in: .whitespaces) + "\n"
-            
-            // Add separator after header
-            if rowIndex == 0 {
-                var sep = "| "
-                for width in widths {
-                    sep += String(repeating: "-", count: width) + " | "
-                }
-                tableString += sep.trimmingCharacters(in: .whitespaces) + "\n"
-            }
-        }
-        tableString += "\n"
+        // Add trailing newline for spacing after table
+        result.append(NSAttributedString(string: "\n"))
         
-        return NSAttributedString(string: tableString, attributes: [
-            .font: theme.codeFont,
-            .foregroundColor: theme.textColor
-        ])
+        return result
     }
 }
