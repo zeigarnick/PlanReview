@@ -6,6 +6,8 @@ A native macOS app for reviewing AI-generated implementation plans. Built for de
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
+![PlanReview screenshot](docs/screenshot.png)
+
 ## Features
 
 - **Markdown Rendering** - Beautiful rendering with syntax highlighting for code blocks
