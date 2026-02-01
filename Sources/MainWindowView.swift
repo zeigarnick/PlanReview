@@ -76,8 +76,15 @@ struct ReviewTabView: View {
                 
                 // Request Changes button (only if has comments)
                 if !document.comments.isEmpty {
-                    Button("Request Changes") {
+                    Button {
                         tabManager.requestChangesAndClose(document)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Request Changes")
+                            Text("⌘⇧R")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                 }
@@ -97,6 +104,12 @@ struct ReviewTabView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .triggerSubmit)) { _ in
+            tabManager.submitAndClose(document)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .triggerRequestChanges)) { _ in
+            tabManager.requestChangesAndClose(document)
         }
     }
 }

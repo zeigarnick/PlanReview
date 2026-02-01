@@ -137,4 +137,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension Notification.Name {
     static let openPlanFile = Notification.Name("openPlanFile")
     static let triggerAddComment = Notification.Name("triggerAddComment")
+    static let triggerSubmit = Notification.Name("triggerSubmit")
+    static let triggerRequestChanges = Notification.Name("triggerRequestChanges")
 }

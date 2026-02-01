@@ -507,6 +507,16 @@ struct MarkdownWKWebView: NSViewRepresentable {
                     window.webkit.messageHandlers.editor.postMessage({ type: 'comment', text });
                 }
             }
+            // Cmd+Enter = Submit/Approve
+            if (e.metaKey && !e.shiftKey && e.key === 'Enter') {
+                e.preventDefault();
+                window.webkit.messageHandlers.editor.postMessage({ type: 'submit' });
+            }
+            // Cmd+Shift+R = Request Changes
+            if (e.metaKey && e.shiftKey && e.key === 'r') {
+                e.preventDefault();
+                window.webkit.messageHandlers.editor.postMessage({ type: 'requestChanges' });
+            }
         });
         
         highlightComments();
@@ -583,6 +593,14 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 if let text = dict["text"] as? String {
                     parent.onAddComment?(text)
                 }
+                
+            case "submit":
+                // Forward Cmd+Enter to SwiftUI
+                NotificationCenter.default.post(name: .triggerSubmit, object: nil)
+            
+            case "requestChanges":
+                // Forward Cmd+Shift+R to SwiftUI
+                NotificationCenter.default.post(name: .triggerRequestChanges, object: nil)
                 
             case "deleteComment":
                 // Handle delete if needed
