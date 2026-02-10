@@ -18,14 +18,18 @@ A native macOS app for reviewing AI-generated implementation plans. Built for de
 
 ## Installation
 
+### Download (Recommended)
+
+1. Download the latest `PlanReview.app.zip` from [Releases](https://github.com/zeigarnick/PlanReview/releases/latest)
+2. Unzip and move `PlanReview.app` to `/Applications`
+
 ### From Source
 
+Requires [Xcode](https://developer.apple.com/xcode/) (not just Command Line Tools).
+
 ```bash
-# Clone the repository
 git clone https://github.com/zeigarnick/PlanReview.git
 cd PlanReview
-
-# Build and install to /Applications
 ./build.sh
 ```
 
