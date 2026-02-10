@@ -259,7 +259,7 @@ Invoke with: `/review path/to/plan.md`
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Swift 5.9+ (for building from source)
+- **Xcode** (not just Command Line Tools) — required to build from source. The Swift Package Manager bundled with Command Line Tools alone has known linking issues. Install Xcode from the [Mac App Store](https://apps.apple.com/us/app/xcode/id497799835) or via [`xcodes`](https://github.com/XcodesOrg/xcodes): `xcodes install --latest`
 
 ## Development
 
