@@ -64,7 +64,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
     private func generateHTML(markdown: String, comments: [Comment]) -> String {
         let parser = MarkdownParser()
         var html = parser.html(from: markdown)
-        html = processTaskLists(html)
+        html = processTaskListCheckboxHTML(html)
         html = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
         
         let commentsJSON = commentsToJSON(comments)
@@ -544,20 +544,6 @@ struct MarkdownWKWebView: NSViewRepresentable {
 </body>
 </html>
 """
-    }
-    
-    private func processTaskLists(_ html: String) -> String {
-        var result = html
-        result = result.replacingOccurrences(
-            of: "<li>[ ] ",
-            with: "<li class=\"task\"><input type=\"checkbox\" disabled> "
-        )
-        result = result.replacingOccurrences(
-            of: "<li>[x] ",
-            with: "<li class=\"task\"><input type=\"checkbox\" checked disabled> ",
-            options: .caseInsensitive
-        )
-        return result
     }
     
     private func commentsToJSON(_ comments: [Comment]) -> String {
