@@ -1,6 +1,12 @@
 import SwiftUI
 import Combine
 
+struct TaskListState: Codable, Equatable {
+    let index: Int
+    let text: String
+    let checked: Bool
+}
+
 struct Comment: Identifiable, Codable {
     let id: UUID
     var text: String
@@ -36,6 +42,7 @@ class ReviewDocument: ObservableObject, Identifiable {
     @Published var selectedCharOffset: Int = 0
     @Published var isAddingComment: Bool = false
     @Published var hasUnsavedChanges: Bool = false
+    @Published var taskStates: [TaskListState] = []
     
     var filename: String {
         URL(fileURLWithPath: filePath).lastPathComponent
@@ -99,6 +106,13 @@ class ReviewDocument: ObservableObject, Identifiable {
         hasUnsavedChanges = true
     }
     
+    func updateTaskStates(_ newTaskStates: [TaskListState]) {
+        if taskStates != newTaskStates {
+            taskStates = newTaskStates
+            hasUnsavedChanges = true
+        }
+    }
+    
     func approve() {
         saveAndSignal(approved: true)
     }
@@ -124,14 +138,20 @@ class ReviewDocument: ObservableObject, Identifiable {
             // Write completion signal
             let donePath = filePath.replacingOccurrences(of: ".md", with: ".done")
             let status = approved ? "approved" : "changes_requested"
-            let signal = """
-            {
-                "status": "\(status)",
-                "commentCount": \(comments.count),
-                "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"
-            }
-            """
-            try signal.write(toFile: donePath, atomically: true, encoding: .utf8)
+            let signal: [String: Any] = [
+                "status": status,
+                "commentCount": comments.count,
+                "timestamp": ISO8601DateFormatter().string(from: Date()),
+                "taskStates": taskStates.map { task in
+                    [
+                        "index": task.index,
+                        "text": task.text,
+                        "checked": task.checked
+                    ]
+                }
+            ]
+            let signalData = try JSONSerialization.data(withJSONObject: signal, options: [.prettyPrinted])
+            try signalData.write(to: URL(fileURLWithPath: donePath))
             
             hasUnsavedChanges = false
         } catch {

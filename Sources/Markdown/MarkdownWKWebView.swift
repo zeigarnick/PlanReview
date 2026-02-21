@@ -7,6 +7,7 @@ import Ink
 struct MarkdownWKWebView: NSViewRepresentable {
     let markdown: String
     let comments: [Comment]
+    let onTaskStateChange: (([TaskListState]) -> Void)?
     let baseURL: URL?
     let onSelectionChange: ((String, CGRect, Int) -> Void)?  // Added charOffset
     let onCommentClick: ((String, CGRect) -> Void)?
@@ -15,6 +16,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
     init(
         markdown: String,
         comments: [Comment] = [],
+        onTaskStateChange: (([TaskListState]) -> Void)? = nil,
         baseURL: URL? = nil,
         onSelectionChange: ((String, CGRect, Int) -> Void)? = nil,
         onCommentClick: ((String, CGRect) -> Void)? = nil,
@@ -22,6 +24,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
     ) {
         self.markdown = markdown
         self.comments = comments
+        self.onTaskStateChange = onTaskStateChange
         self.baseURL = baseURL
         self.onSelectionChange = onSelectionChange
         self.onCommentClick = onCommentClick
@@ -480,6 +483,27 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 commentId: commentId 
             });
         }
+
+        function collectTaskStates() {
+            const states = [];
+            document.querySelectorAll('li.task').forEach((item, index) => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (!checkbox) return;
+                states.push({
+                    index,
+                    text: item.textContent.trim(),
+                    checked: checkbox.checked
+                });
+            });
+            return states;
+        }
+
+        function sendTaskStateUpdate() {
+            window.webkit.messageHandlers.editor.postMessage({
+                type: 'taskStateChange',
+                tasks: collectTaskStates()
+            });
+        }
         
         // Use mousedown - normalize target in case it's a text node
         content.addEventListener('mousedown', (e) => {
@@ -494,6 +518,12 @@ struct MarkdownWKWebView: NSViewRepresentable {
             const rect = highlight.getBoundingClientRect();
             editComment(commentId, { x: rect.x, y: rect.y, width: rect.width, height: rect.height });
         }, true);
+
+        content.addEventListener('change', (e) => {
+            if (e.target instanceof HTMLInputElement && e.target.type === 'checkbox') {
+                sendTaskStateUpdate();
+            }
+        });
         
         document.addEventListener('mouseup', () => {
             console.log('[DEBUG] mouseup fired');
@@ -540,6 +570,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
         });
         
         highlightComments();
+        sendTaskStateUpdate();
     </script>
 </body>
 </html>
@@ -611,6 +642,11 @@ struct MarkdownWKWebView: NSViewRepresentable {
                     parent.onAddComment?(text)
                 }
                 
+            case "taskStateChange":
+                if let tasks = parseTaskStates(dict["tasks"]) {
+                    parent.onTaskStateChange?(tasks)
+                }
+                
             case "submit":
                 // Forward Cmd+Enter to SwiftUI
                 NotificationCenter.default.post(name: .triggerSubmit, object: nil)
@@ -641,6 +677,18 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 return .zero
             }
             return CGRect(x: x, y: y, width: width, height: height)
+        }
+
+        private func parseTaskStates(_ value: Any?) -> [TaskListState]? {
+            guard let rawTasks = value as? [[String: Any]] else { return nil }
+            return rawTasks.compactMap { rawTask in
+                guard let index = rawTask["index"] as? Int,
+                      let text = rawTask["text"] as? String,
+                      let checked = rawTask["checked"] as? Bool else {
+                    return nil
+                }
+                return TaskListState(index: index, text: text, checked: checked)
+            }
         }
         
         func scrollToComment(_ commentId: String) {
