@@ -7,6 +7,7 @@ import Ink
 struct MarkdownWKWebView: NSViewRepresentable {
     let markdown: String
     let comments: [Comment]
+    let baseURL: URL?
     let onSelectionChange: ((String, CGRect, Int) -> Void)?  // Added charOffset
     let onCommentClick: ((String, CGRect) -> Void)?
     let onAddComment: ((String) -> Void)?
@@ -14,12 +15,14 @@ struct MarkdownWKWebView: NSViewRepresentable {
     init(
         markdown: String,
         comments: [Comment] = [],
+        baseURL: URL? = nil,
         onSelectionChange: ((String, CGRect, Int) -> Void)? = nil,
         onCommentClick: ((String, CGRect) -> Void)? = nil,
         onAddComment: ((String) -> Void)? = nil
     ) {
         self.markdown = markdown
         self.comments = comments
+        self.baseURL = baseURL
         self.onSelectionChange = onSelectionChange
         self.onCommentClick = onCommentClick
         self.onAddComment = onAddComment
@@ -42,7 +45,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         
         let html = generateHTML(markdown: markdown, comments: comments)
-        webView.loadHTMLString(html, baseURL: nil)
+        webView.loadHTMLString(html, baseURL: baseURL)
         
         return webView
     }
@@ -62,6 +65,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
         let parser = MarkdownParser()
         var html = parser.html(from: markdown)
         html = processTaskLists(html)
+        html = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
         
         let commentsJSON = commentsToJSON(comments)
         
@@ -152,6 +156,22 @@ struct MarkdownWKWebView: NSViewRepresentable {
         blockquote { border-left: 3px solid #444; padding-left: 16px; margin: 12px 0; color: #888; }
         hr { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0; }
         ::selection { background: rgba(96,165,250,0.4); }
+
+        .embedded-video { margin: 16px 0; }
+        .embedded-video video {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: #0d0d0d;
+        }
+        .embedded-video figcaption {
+            margin-top: 6px;
+            color: #888;
+            font-size: 12px;
+        }
         
         /* Comment highlights */
         .comment-highlight {

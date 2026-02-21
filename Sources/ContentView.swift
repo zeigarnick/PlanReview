@@ -102,6 +102,7 @@ struct MarkdownWebView: View {
             MarkdownWKWebView(
                 markdown: document.markdownContent,
                 comments: document.comments,
+                baseURL: URL(fileURLWithPath: document.filePath).deletingLastPathComponent(),
                 onSelectionChange: { text, rect, charOffset in
                     selectedText = text
                     selectionRect = rect
