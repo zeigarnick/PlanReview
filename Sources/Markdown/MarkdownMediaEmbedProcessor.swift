@@ -72,7 +72,7 @@ enum MarkdownMediaEmbedProcessor {
 
             let rawSource = nsString.substring(with: sourceRange)
             let source = plainText(fromHTML: rawSource)
-            guard isImageURL(source), !isWebMURL(source) else { continue }
+            guard isEmbeddableCodeImageSource(source), !isWebMURL(source) else { continue }
 
             let replacement = inlineImageHTML(source: source, caption: "")
             output.replaceCharacters(in: fullRange, with: replacement)
@@ -105,7 +105,7 @@ enum MarkdownMediaEmbedProcessor {
 
             let rawSource = nsString.substring(with: sourceRange)
             let source = plainText(fromHTML: rawSource)
-            guard isImageURL(source), !isWebMURL(source) else { continue }
+            guard isEmbeddableCodeImageSource(source), !isWebMURL(source) else { continue }
 
             let suffix = nsString.substring(with: suffixRange)
             let replacement = "<li>\(inlineImageHTML(source: source, caption: ""))\(suffix)"
@@ -181,6 +181,21 @@ enum MarkdownMediaEmbedProcessor {
         ]
 
         return supportedExtensions.contains(where: { withoutQuery.hasSuffix($0) })
+    }
+
+    private static func isEmbeddableCodeImageSource(_ candidate: String) -> Bool {
+        isImageURL(candidate) || isRemoteHTTPURL(candidate)
+    }
+
+    private static func isRemoteHTTPURL(_ candidate: String) -> Bool {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host != nil else {
+            return false
+        }
+        return true
     }
 
     private static func plainText(fromHTML html: String) -> String {

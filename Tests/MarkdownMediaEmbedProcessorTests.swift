@@ -65,4 +65,15 @@ final class MarkdownMediaEmbedProcessorTests: XCTestCase {
         XCTAssertEqual(embeddedCount, 3)
         XCTAssertFalse(processed.contains("<code>/Users/nick/Projects/work/Waterroutes/e2e/artifacts/2026-02-21-2341/screenshots/"))
     }
+
+    func testConvertsCodeWrappedExternalImageURLWithoutExtension() {
+        let url = "https://lh3.googleusercontent.com/aida/AOfcidUgFyRlT01hhnS3cmTH66HRe7OLSCJYwi7tuDxv-qowslGc78KfT_IeR3JHktjNmydumzuC_VcKsjDbI-Q7vPNrX9k1Wefugn2ptWjEmrvwC8BEE2iaVjDHs4eVM8E2V53cT7Z_C6pqhiBQs7OAfXe02wxE10mOjFepmb5AQpYLKP_n3Ac98skWZNWkPu8lBTHDvfQd2DW0M_hYHhC3OgVj7O1bxMAVRzQrzwJFCFVyj50h3D0eTClrcXZh"
+        let html = "<ol><li><code>\(url)</code><ul><li>remote screenshot</li></ul></li></ol>"
+
+        let processed = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
+
+        XCTAssertTrue(processed.contains("<figure class=\"embedded-image\">"))
+        XCTAssertTrue(processed.contains("<img src=\"\(url)\""))
+        XCTAssertFalse(processed.contains("<code>\(url)</code>"))
+    }
 }
