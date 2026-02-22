@@ -71,6 +71,10 @@ struct MarkdownWKWebView: NSViewRepresentable {
         Coordinator(self)
     }
 
+    func generatedHTMLForTesting() -> String {
+        generateHTML(markdown: markdown, comments: comments)
+    }
+
     private func writeHTMLToTemporaryFile(_ html: String) -> URL? {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("planreview-html", isDirectory: true)
@@ -94,7 +98,8 @@ struct MarkdownWKWebView: NSViewRepresentable {
     
     private func generateHTML(markdown: String, comments: [Comment]) -> String {
         let parser = MarkdownParser()
-        var html = parser.html(from: markdown)
+        let normalizedMarkdown = normalizeMarkdownForInk(markdown)
+        var html = parser.html(from: normalizedMarkdown)
         html = processTaskListCheckboxHTML(html)
         html = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
         
@@ -619,6 +624,39 @@ struct MarkdownWKWebView: NSViewRepresentable {
 </body>
 </html>
 """
+    }
+
+    private func normalizeMarkdownForInk(_ markdown: String) -> String {
+        let lines = markdown
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map(String.init)
+
+        guard !lines.isEmpty else { return markdown }
+
+        var normalized: [String] = []
+        normalized.reserveCapacity(lines.count + 8)
+
+        for line in lines {
+            if isTopLevelOrderedListItem(line),
+               let previousLine = normalized.last,
+               isIndentedUnorderedListItem(previousLine),
+               !previousLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               (normalized.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) {
+                normalized.append("")
+            }
+
+            normalized.append(line)
+        }
+
+        return normalized.joined(separator: "\n")
+    }
+
+    private func isTopLevelOrderedListItem(_ line: String) -> Bool {
+        line.range(of: #"^\d+\.\s+"#, options: .regularExpression) != nil
+    }
+
+    private func isIndentedUnorderedListItem(_ line: String) -> Bool {
+        line.range(of: #"^\s{2,}[-*+]\s+"#, options: .regularExpression) != nil
     }
     
     private func commentsToJSON(_ comments: [Comment]) -> String {
