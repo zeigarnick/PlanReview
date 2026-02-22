@@ -48,7 +48,16 @@ struct MarkdownWKWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         
         let html = generateHTML(markdown: markdown, comments: comments)
-        webView.loadHTMLString(html, baseURL: baseURL)
+        if let localHTMLURL = writeHTMLToTemporaryFile(html) {
+            // Allow local markdown to embed local files outside the markdown directory
+            // (for example, screenshot artifacts in sibling folders).
+            webView.loadFileURL(
+                localHTMLURL,
+                allowingReadAccessTo: URL(fileURLWithPath: "/")
+            )
+        } else {
+            webView.loadHTMLString(html, baseURL: baseURL)
+        }
         
         return webView
     }
@@ -60,6 +69,25 @@ struct MarkdownWKWebView: NSViewRepresentable {
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    private func writeHTMLToTemporaryFile(_ html: String) -> URL? {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("planreview-html", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(
+                at: tempDir,
+                withIntermediateDirectories: true
+            )
+
+            let fileURL = tempDir.appendingPathComponent("\(UUID().uuidString).html")
+            try html.write(to: fileURL, atomically: true, encoding: .utf8)
+            return fileURL
+        } catch {
+            print("[DEBUG] Failed to write temporary HTML file: \(error)")
+            return nil
+        }
     }
     
     // MARK: - HTML Generation (Exact Match to Original Binary)
