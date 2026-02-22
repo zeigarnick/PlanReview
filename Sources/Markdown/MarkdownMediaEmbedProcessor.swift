@@ -220,7 +220,7 @@ enum MarkdownMediaEmbedProcessor {
             : ""
 
         return """
-        <figure class="embedded-image"><img src="\(escapedSource)" alt="\(escapeHTML(cleanedCaption))" loading="lazy">\(captionHTML)</figure>
+        <figure class="embedded-image"><img src="\(escapedSource)" alt="\(escapeHTML(cleanedCaption))">\(captionHTML)</figure>
         """
     }
 
