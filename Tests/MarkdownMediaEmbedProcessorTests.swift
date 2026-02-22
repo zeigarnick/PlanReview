@@ -29,4 +29,23 @@ final class MarkdownMediaEmbedProcessorTests: XCTestCase {
         XCTAssertTrue(processed.contains("<source src=\"./artifacts/demo.webm\" type=\"video/webm\">"))
         XCTAssertTrue(processed.contains("<figcaption>Capture</figcaption>"))
     }
+
+    func testConvertsStandaloneCodeWrappedImagePathToInlineImage() {
+        let html = #"<p><code>/Users/nick/Projects/work/Waterroutes/e2e/artifacts/2026-02-21-2341/screenshots/A1.1-passed.png</code></p>"#
+
+        let processed = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
+
+        XCTAssertTrue(processed.contains("<figure class=\"embedded-image\">"))
+        XCTAssertTrue(processed.contains("<img src=\"/Users/nick/Projects/work/Waterroutes/e2e/artifacts/2026-02-21-2341/screenshots/A1.1-passed.png\""))
+    }
+
+    func testConvertsListItemCodeWrappedImagePathToInlineImage() {
+        let html = #"<ol><li><code>/Users/nick/Projects/work/Waterroutes/e2e/artifacts/2026-02-21-2341/screenshots/A1.2-passed.png</code><ul><li>Rendered screenshot</li></ul></li></ol>"#
+
+        let processed = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
+
+        XCTAssertTrue(processed.contains("<figure class=\"embedded-image\">"))
+        XCTAssertTrue(processed.contains("<img src=\"/Users/nick/Projects/work/Waterroutes/e2e/artifacts/2026-02-21-2341/screenshots/A1.2-passed.png\""))
+        XCTAssertTrue(processed.contains("<ul><li>Rendered screenshot</li></ul>"))
+    }
 }

@@ -175,6 +175,22 @@ struct MarkdownWKWebView: NSViewRepresentable {
             color: #888;
             font-size: 12px;
         }
+
+        .embedded-image { margin: 16px 0; }
+        .embedded-image img {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: #0d0d0d;
+        }
+        .embedded-image figcaption {
+            margin-top: 6px;
+            color: #888;
+            font-size: 12px;
+        }
         
         /* Comment highlights */
         .comment-highlight {
