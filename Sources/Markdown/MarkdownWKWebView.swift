@@ -102,6 +102,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
         var html = parser.html(from: normalizedMarkdown)
         html = processTaskListCheckboxHTML(html)
         html = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
+        html = wrapTablesForResponsiveLayout(in: html)
         
         let commentsJSON = commentsToJSON(comments)
         
@@ -164,10 +165,29 @@ struct MarkdownWKWebView: NSViewRepresentable {
         }
         
         /* Tables */
-        table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
-        th, td { padding: 8px 12px; text-align: left; border: 1px solid #333; }
+        .table-scroll { overflow-x: auto; margin: 12px 0; }
+        .table-scroll table {
+            border-collapse: collapse;
+            margin: 0;
+            min-width: 100%;
+            width: max-content;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #333;
+            vertical-align: top;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
         th { background: rgba(255,255,255,0.05); font-weight: 600; color: #fff; }
         tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+        .table-scroll code {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
         
         /* Code */
         code {
@@ -626,6 +646,20 @@ struct MarkdownWKWebView: NSViewRepresentable {
 """
     }
 
+    private func wrapTablesForResponsiveLayout(in html: String) -> String {
+        guard html.contains("<table>") else { return html }
+
+        var output = html.replacingOccurrences(
+            of: "<table>",
+            with: "<div class=\"table-scroll\"><table>"
+        )
+        output = output.replacingOccurrences(
+            of: "</table>",
+            with: "</table></div>"
+        )
+        return output
+    }
+
     private func normalizeMarkdownForInk(_ markdown: String) -> String {
         let lines = markdown
             .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
@@ -645,6 +679,13 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 isInsideFence.toggle()
                 normalized.append(line)
                 index += 1
+                continue
+            }
+
+            if !isInsideFence,
+               let validTableBlock = consumeValidMarkdownTableIfNeeded(lines, startIndex: index) {
+                normalized.append(contentsOf: validTableBlock.lines)
+                index = validTableBlock.nextIndex
                 continue
             }
 
@@ -718,6 +759,83 @@ struct MarkdownWKWebView: NSViewRepresentable {
 
         let transformed = [normalizedHeader, separator] + normalizedBody
         return (lines: transformed, nextIndex: endIndex)
+    }
+
+    private func consumeValidMarkdownTableIfNeeded(
+        _ lines: [String],
+        startIndex: Int
+    ) -> (lines: [String], nextIndex: Int)? {
+        guard startIndex + 1 < lines.count else { return nil }
+        guard isPipeRowCandidate(lines[startIndex]) else { return nil }
+        guard isMarkdownTableSeparatorRow(lines[startIndex + 1]) else { return nil }
+
+        var endIndex = startIndex + 2
+        while endIndex < lines.count, isPipeRowCandidate(lines[endIndex]) {
+            endIndex += 1
+        }
+
+        let block = Array(lines[startIndex..<endIndex])
+
+        if block.contains(where: { $0.contains("<br>") || $0.contains("<br/>") || $0.contains("<br />") }),
+           let htmlTable = convertMarkdownTableBlockToHTML(block) {
+            return (lines: [htmlTable], nextIndex: endIndex)
+        }
+
+        return (lines: block, nextIndex: endIndex)
+    }
+
+    private func convertMarkdownTableBlockToHTML(_ block: [String]) -> String? {
+        guard block.count >= 2 else { return nil }
+        guard isMarkdownTableSeparatorRow(block[1]) else { return nil }
+
+        let headerCells = parsePipeCells(block[0])
+        guard headerCells.count >= 2 else { return nil }
+        let columnCount = headerCells.count
+
+        let bodyRows = block.dropFirst(2).map { parsePipeCells($0) }
+
+        var html = "<table><thead><tr>"
+        for cell in headerCells {
+            html += "<th>\(renderInlineMarkdownForTableCell(cell))</th>"
+        }
+        html += "</tr></thead><tbody>"
+
+        for row in bodyRows {
+            let normalizedCells = normalizeTableCells(row, columnCount: columnCount)
+            html += "<tr>"
+            for cell in normalizedCells {
+                html += "<td>\(renderInlineMarkdownForTableCell(cell))</td>"
+            }
+            html += "</tr>"
+        }
+
+        html += "</tbody></table>"
+        return html
+    }
+
+    private func normalizeTableCells(_ rawCells: [String], columnCount: Int) -> [String] {
+        var cells = rawCells
+
+        if cells.count < columnCount {
+            cells.append(contentsOf: Array(repeating: "", count: columnCount - cells.count))
+        } else if cells.count > columnCount {
+            let leadingCells = Array(cells.prefix(columnCount - 1))
+            let mergedTail = cells.suffix(from: columnCount - 1).joined(separator: " | ")
+            cells = leadingCells + [mergedTail]
+        }
+
+        return cells
+    }
+
+    private func renderInlineMarkdownForTableCell(_ cell: String) -> String {
+        guard !cell.isEmpty else { return "" }
+
+        let rendered = MarkdownParser().html(from: cell)
+        if rendered.hasPrefix("<p>"), rendered.hasSuffix("</p>"), rendered.count >= 7 {
+            return String(rendered.dropFirst(3).dropLast(4))
+        }
+
+        return rendered
     }
 
     private func isPipeRowCandidate(_ line: String) -> Bool {

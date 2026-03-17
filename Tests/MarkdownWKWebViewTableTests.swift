@@ -32,4 +32,21 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertTrue(html.contains("<th>gate</th>"), "Expected header cells to stay intact.")
         XCTAssertTrue(html.contains("<td>yes</td>"), "Expected table body cells to stay intact.")
     }
+
+    func testRendersDiscoveryLanesStyleWideTableWithScrollableWrapper() {
+        let markdown = """
+        ### Discovery Lanes
+
+        | Lane | Scope | Paths/URLs | Constraints/Pitfalls | Reusable Patterns | Unknowns | Recommended Next Reads | Confidence |
+        | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 1 | Hosting/deploy state | `package.json`<br>`apps/web/vite.config.mts`<br>`wrangler.jsonc` | Web build is still coupled to `@cloudflare/vite-plugin` and Wrangler scripts. | Existing monorepo build wrappers (`pnpm --filter @waterroutes/web`). | Final rollback window duration and operational owner. | `docs/prd/implementation-spec.md` | high |
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<div class=\"table-scroll\"><table>"), "Expected tables to be wrapped for horizontal scrolling.")
+        XCTAssertTrue(html.contains("<th>Lane</th>"), "Expected Discovery Lanes header to render as table header.")
+        XCTAssertTrue(html.contains("apps/web/vite.config.mts"), "Expected path content to remain visible inside table cells.")
+    }
 }
