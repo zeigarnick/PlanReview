@@ -636,7 +636,25 @@ struct MarkdownWKWebView: NSViewRepresentable {
         var normalized: [String] = []
         normalized.reserveCapacity(lines.count + 8)
 
-        for line in lines {
+        var index = 0
+        var isInsideFence = false
+        while index < lines.count {
+            let line = lines[index]
+
+            if isFenceDelimiter(line) {
+                isInsideFence.toggle()
+                normalized.append(line)
+                index += 1
+                continue
+            }
+
+            if !isInsideFence,
+               let transformedTable = transformPseudoPipeTableIfNeeded(lines, startIndex: index) {
+                normalized.append(contentsOf: transformedTable.lines)
+                index = transformedTable.nextIndex
+                continue
+            }
+
             if isTopLevelOrderedListItem(line),
                let previousLine = normalized.last,
                isIndentedUnorderedListItem(previousLine),
@@ -646,9 +664,111 @@ struct MarkdownWKWebView: NSViewRepresentable {
             }
 
             normalized.append(line)
+            index += 1
         }
 
         return normalized.joined(separator: "\n")
+    }
+
+    private func isFenceDelimiter(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
+    }
+
+    private func transformPseudoPipeTableIfNeeded(
+        _ lines: [String],
+        startIndex: Int
+    ) -> (lines: [String], nextIndex: Int)? {
+        guard startIndex < lines.count else { return nil }
+
+        let startLine = lines[startIndex]
+        guard isPipeRowCandidate(startLine) else { return nil }
+
+        var endIndex = startIndex
+        while endIndex < lines.count, isPipeRowCandidate(lines[endIndex]) {
+            endIndex += 1
+        }
+
+        let block = Array(lines[startIndex..<endIndex])
+        guard block.count >= 2 else { return nil }
+
+        if isMarkdownTableSeparatorRow(block[1]) {
+            return nil
+        }
+
+        var parsedRows: [[String]] = []
+        parsedRows.reserveCapacity(block.count)
+        for row in block {
+            let cells = parsePipeCells(row)
+            guard cells.count >= 2 else { return nil }
+            parsedRows.append(cells)
+        }
+
+        let columnCount = parsedRows[0].count
+        guard columnCount >= 2 else { return nil }
+
+        let normalizedHeader = formatMarkdownTableRow(parsedRows[0], columnCount: columnCount)
+        let separator = "| " + Array(repeating: "---", count: columnCount).joined(separator: " | ") + " |"
+
+        var normalizedBody: [String] = []
+        normalizedBody.reserveCapacity(max(0, parsedRows.count - 1))
+        for row in parsedRows.dropFirst() {
+            normalizedBody.append(formatMarkdownTableRow(row, columnCount: columnCount))
+        }
+
+        let transformed = [normalizedHeader, separator] + normalizedBody
+        return (lines: transformed, nextIndex: endIndex)
+    }
+
+    private func isPipeRowCandidate(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        guard trimmed.contains("|") else { return false }
+
+        if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") || trimmed.hasPrefix(">") {
+            return false
+        }
+
+        return true
+    }
+
+    private func isMarkdownTableSeparatorRow(_ line: String) -> Bool {
+        let cells = parsePipeCells(line)
+        guard cells.count >= 2 else { return false }
+
+        return cells.allSatisfy { cell in
+            guard !cell.isEmpty else { return false }
+            return cell.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil
+        }
+    }
+
+    private func parsePipeCells(_ line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("|") {
+            trimmed.removeFirst()
+        }
+        if trimmed.hasSuffix("|") {
+            trimmed.removeLast()
+        }
+
+        return trimmed
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private func formatMarkdownTableRow(_ rawCells: [String], columnCount: Int) -> String {
+        var cells = rawCells
+
+        if cells.count < columnCount {
+            cells.append(contentsOf: Array(repeating: "", count: columnCount - cells.count))
+        } else if cells.count > columnCount {
+            let leadingCells = Array(cells.prefix(columnCount - 1))
+            let mergedTail = cells.suffix(from: columnCount - 1).joined(separator: " | ")
+            cells = leadingCells + [mergedTail]
+        }
+
+        let escapedCells = cells.map { $0.replacingOccurrences(of: "|", with: "\\|") }
+        return "| " + escapedCells.joined(separator: " | ") + " |"
     }
 
     private func isTopLevelOrderedListItem(_ line: String) -> Bool {
