@@ -67,4 +67,21 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertTrue(html.contains("<th>gate</th>"), "Expected table header cells to render.")
         XCTAssertTrue(html.contains("implementer/general"), "Expected slash-containing executor values to render inside table cells.")
     }
+
+    func testInlineCodeWithStrongTagDoesNotLeakBoldToFollowingSections() {
+        let markdown = """
+        - Add bold emphasis to key headline tokens and keep the cap (<= 3 `<strong>` spans).
+        - Mirror the same salutation behavior in static fallback HTML output.
+
+        ## Tests
+        - Ensure formatting remains stable.
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertFalse(html.contains("<code><strong>"), "Inline code should escape raw HTML tags instead of creating live tags.")
+        XCTAssertTrue(html.contains("<code>&amp;lt;strong&amp;gt;</code>"), "Inline code should render literal tag text safely encoded.")
+        XCTAssertTrue(html.contains("<h2>Tests</h2>"), "Heading after inline code should render as a heading, not be swallowed by leaked bold tags.")
+    }
 }

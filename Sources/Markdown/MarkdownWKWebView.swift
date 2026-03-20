@@ -102,6 +102,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
         var html = parser.html(from: normalizedMarkdown)
         html = processTaskListCheckboxHTML(html)
         html = MarkdownMediaEmbedProcessor.processEmbeds(in: html)
+        html = sanitizeCodeTagContents(in: html)
         html = wrapTablesForResponsiveLayout(in: html)
         
         let commentsJSON = commentsToJSON(comments)
@@ -660,10 +661,45 @@ struct MarkdownWKWebView: NSViewRepresentable {
         return output
     }
 
+    private func sanitizeCodeTagContents(in html: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"<code\b([^>]*)>(.*?)</code>"#,
+            options: [.dotMatchesLineSeparators, .caseInsensitive]
+        ) else {
+            return html
+        }
+
+        let nsString = html as NSString
+        let fullRange = NSRange(location: 0, length: nsString.length)
+        let matches = regex.matches(in: html, options: [], range: fullRange)
+        guard !matches.isEmpty else { return html }
+
+        let output = NSMutableString(string: html)
+        for match in matches.reversed() {
+            guard match.numberOfRanges == 3 else { continue }
+
+            let attributesRange = match.range(at: 1)
+            let contentRange = match.range(at: 2)
+            guard attributesRange.location != NSNotFound, contentRange.location != NSNotFound else { continue }
+
+            let attributes = nsString.substring(with: attributesRange)
+            let content = nsString.substring(with: contentRange)
+            let sanitizedContent = content
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+
+            output.replaceCharacters(in: match.range(at: 0), with: "<code\(attributes)>\(sanitizedContent)</code>")
+        }
+
+        return String(output)
+    }
+
     private func normalizeMarkdownForInk(_ markdown: String) -> String {
-        let lines = markdown
+        let sourceLines = markdown
             .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
             .map(String.init)
+
+        let lines = sanitizeInlineCodeAngleBracketsOutsideFences(sourceLines)
 
         guard !lines.isEmpty else { return markdown }
 
@@ -709,6 +745,59 @@ struct MarkdownWKWebView: NSViewRepresentable {
         }
 
         return normalized.joined(separator: "\n")
+    }
+
+    private func sanitizeInlineCodeAngleBracketsOutsideFences(_ lines: [String]) -> [String] {
+        var sanitized: [String] = []
+        sanitized.reserveCapacity(lines.count)
+
+        var isInsideFence = false
+        for line in lines {
+            if isFenceDelimiter(line) {
+                isInsideFence.toggle()
+                sanitized.append(line)
+                continue
+            }
+
+            if isInsideFence {
+                sanitized.append(line)
+                continue
+            }
+
+            sanitized.append(sanitizeInlineCodeAngleBrackets(in: line))
+        }
+
+        return sanitized
+    }
+
+    private func sanitizeInlineCodeAngleBrackets(in line: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"(`+)([^`\n]*?)\1"#) else {
+            return line
+        }
+
+        let nsLine = line as NSString
+        let fullRange = NSRange(location: 0, length: nsLine.length)
+        let matches = regex.matches(in: line, options: [], range: fullRange)
+        guard !matches.isEmpty else { return line }
+
+        let output = NSMutableString(string: line)
+        for match in matches.reversed() {
+            guard match.numberOfRanges == 3 else { continue }
+
+            let delimiterRange = match.range(at: 1)
+            let contentRange = match.range(at: 2)
+            guard delimiterRange.location != NSNotFound, contentRange.location != NSNotFound else { continue }
+
+            let delimiter = nsLine.substring(with: delimiterRange)
+            let content = nsLine.substring(with: contentRange)
+            let escapedContent = content
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+
+            output.replaceCharacters(in: match.range(at: 0), with: "\(delimiter)\(escapedContent)\(delimiter)")
+        }
+
+        return String(output)
     }
 
     private func isFenceDelimiter(_ line: String) -> Bool {
