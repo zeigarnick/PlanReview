@@ -776,8 +776,7 @@ struct MarkdownWKWebView: NSViewRepresentable {
 
         let block = Array(lines[startIndex..<endIndex])
 
-        if block.contains(where: { $0.contains("<br>") || $0.contains("<br/>") || $0.contains("<br />") }),
-           let htmlTable = convertMarkdownTableBlockToHTML(block) {
+        if let htmlTable = convertMarkdownTableBlockToHTML(block) {
             return (lines: [htmlTable], nextIndex: endIndex)
         }
 

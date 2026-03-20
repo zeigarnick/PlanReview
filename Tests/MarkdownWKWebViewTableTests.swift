@@ -49,4 +49,22 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertTrue(html.contains("<th>Lane</th>"), "Expected Discovery Lanes header to render as table header.")
         XCTAssertTrue(html.contains("apps/web/vite.config.mts"), "Expected path content to remain visible inside table cells.")
     }
+
+    func testRendersExecutionPolicyTableWithInlineCodeCells() {
+        let markdown = """
+        ## Execution Quality Policy
+
+        | gate | stage | required | trigger | executor | command/method | evidence |
+        | --- | --- | --- | --- | --- | --- | --- |
+        | notification-email-contract-tests | pre-merge | yes | any change to email notification copy/composition | implementer/general | `pnpm test:convex:run -- convex/waterroutesNotifications.test.ts` | passing targeted test output with salutation + legacy-guidance assertions |
+        | baseline-quality | pre-merge | yes | always | implementer/general | `pnpm lint && pnpm test:run && pnpm build` | passing outputs or documented unrelated blockers |
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<div class=\"table-scroll\"><table>"), "Expected execution policy table to be wrapped for scrolling.")
+        XCTAssertTrue(html.contains("<th>gate</th>"), "Expected table header cells to render.")
+        XCTAssertTrue(html.contains("implementer/general"), "Expected slash-containing executor values to render inside table cells.")
+    }
 }
