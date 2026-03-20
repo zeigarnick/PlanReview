@@ -764,7 +764,8 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 continue
             }
 
-            sanitized.append(sanitizeInlineCodeAngleBrackets(in: line))
+            let sanitizedComparators = line.replacingOccurrences(of: "<=", with: "&lt;=")
+            sanitized.append(sanitizeInlineCodeAngleBrackets(in: sanitizedComparators))
         }
 
         return sanitized
@@ -788,13 +789,12 @@ struct MarkdownWKWebView: NSViewRepresentable {
             let contentRange = match.range(at: 2)
             guard delimiterRange.location != NSNotFound, contentRange.location != NSNotFound else { continue }
 
-            let delimiter = nsLine.substring(with: delimiterRange)
             let content = nsLine.substring(with: contentRange)
             let escapedContent = content
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
 
-            output.replaceCharacters(in: match.range(at: 0), with: "\(delimiter)\(escapedContent)\(delimiter)")
+            output.replaceCharacters(in: match.range(at: 0), with: "<code>\(escapedContent)</code>")
         }
 
         return String(output)

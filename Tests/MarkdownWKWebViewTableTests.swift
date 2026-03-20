@@ -79,9 +79,39 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
 
         let view = MarkdownWKWebView(markdown: markdown)
         let html = view.generatedHTMLForTesting()
-
         XCTAssertFalse(html.contains("<code><strong>"), "Inline code should escape raw HTML tags instead of creating live tags.")
-        XCTAssertTrue(html.contains("<code>&amp;lt;strong&amp;gt;</code>"), "Inline code should render literal tag text safely encoded.")
+        XCTAssertTrue(
+            html.contains("<code>&amp;lt;strong&amp;gt;</code>") || html.contains("<code>&lt;strong&gt;</code>"),
+            "Inline code should render literal tag text safely encoded."
+        )
         XCTAssertTrue(html.contains("<h2>Tests</h2>"), "Heading after inline code should render as a heading, not be swallowed by leaked bold tags.")
+    }
+
+    func testSectionsAfterStrongCodeAndTableRenderAsHeadings() {
+        let markdown = """
+        - Add bold emphasis to key headline tokens (report type/date) where readability benefits, without changing table data semantics, and keep the global max-emphasis cap (<= 3 `<strong>` spans).
+        - Mirror the same salutation behavior in static fallback HTML output so runtime fallback does not regress tone.
+
+        ### Tests
+        - Add assertions for forecast template salutation output.
+
+        ## Execution Quality Policy
+        | gate | stage | required |
+        | --- | --- | --- |
+        | baseline-quality | pre-merge | yes |
+
+        ## Risks / Out of Scope
+        - Risk: bold-emphasis rules can over-highlight text.
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<h3>Tests</h3>"), "Expected Tests section heading to render after the strong-code bullet line.")
+        XCTAssertTrue(html.contains("<h2>Execution Quality Policy</h2>"), "Expected Execution Quality Policy heading to render as h2.")
+        XCTAssertTrue(html.contains("<div class=\"table-scroll\"><table>"), "Expected execution policy table to render in scroll wrapper.")
+        XCTAssertTrue(html.contains("<h2>Risks / Out of Scope</h2>"), "Expected Risks / Out of Scope heading to render as h2.")
+        XCTAssertFalse(html.contains("## Execution Quality Policy</li>"), "Execution heading should not be swallowed inside a list item.")
+        XCTAssertFalse(html.contains("## Risks / Out of Scope</li>"), "Risks heading should not be swallowed inside a list item.")
     }
 }
