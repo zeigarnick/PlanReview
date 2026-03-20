@@ -114,4 +114,25 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertFalse(html.contains("## Execution Quality Policy</li>"), "Execution heading should not be swallowed inside a list item.")
         XCTAssertFalse(html.contains("## Risks / Out of Scope</li>"), "Risks heading should not be swallowed inside a list item.")
     }
+
+    func testHierarchySemanticsLineWithInlineBreakPreservesFollowingSections() {
+        let markdown = """
+        #### [MODIFY] [convex/schema.ts](convex/schema.ts)
+        - Add optional `displayOrder` (or `sortOrder`) to wrRides, wrLaterals, and wrHeadgates, with hierarchical semantics:<br>rides ordered per org, laterals ordered per `rideId`, headgates ordered per `lateralId`.
+        - Keep existing name indexes for search/backward compatibility.
+
+        #### [MODIFY] [convex/admin/_organizationAdmin/hierarchy.ts](convex/admin/_organizationAdmin/hierarchy.ts)
+        - Add list queries/mutations to read/update canonical sequence for rides/laterals.
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<h4>[MODIFY] <a href=\"convex/schema.ts\">convex/schema.ts</a></h4>"), "Expected first modify section heading to render as h4.")
+        XCTAssertTrue(html.contains("rides ordered per org, laterals ordered per <code>rideId</code>, headgates ordered per <code>lateralId</code>"), "Expected hierarchy semantics continuation text to remain in the list item body.")
+        XCTAssertTrue(html.contains("<code>rideId</code>"), "Expected inline code after <br> to render as code.")
+        XCTAssertTrue(html.contains("<h4>[MODIFY] <a href=\"convex/admin/_organizationAdmin/hierarchy.ts\">convex/admin/_organizationAdmin/hierarchy.ts</a></h4>"), "Expected following modify section heading to render as h4 rather than being swallowed.")
+        XCTAssertTrue(html.contains("<li>Keep existing name indexes for search/backward compatibility.</li>"), "Expected second bullet to render as a separate list item.")
+        XCTAssertFalse(html.contains("#### [MODIFY] [convex/admin/_organizationAdmin/hierarchy.ts]"), "Expected following markdown heading to be parsed, not rendered as raw text.")
+    }
 }

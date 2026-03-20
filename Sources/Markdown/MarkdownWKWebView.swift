@@ -765,10 +765,65 @@ struct MarkdownWKWebView: NSViewRepresentable {
             }
 
             let sanitizedComparators = line.replacingOccurrences(of: "<=", with: "&lt;=")
-            sanitized.append(sanitizeInlineCodeAngleBrackets(in: sanitizedComparators))
+            let sanitizedInlineCode = sanitizeInlineCodeAngleBrackets(in: sanitizedComparators)
+            sanitized.append(contentsOf: normalizeInlineBreaksInListItemLine(sanitizedInlineCode))
         }
 
         return sanitized
+    }
+
+    private func normalizeInlineBreaksInListItemLine(_ line: String) -> [String] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"^(\s*)([-+*]|\d+[.)])\s+(.*)$"#,
+            options: []
+        ) else {
+            return [line]
+        }
+
+        let nsLine = line as NSString
+        let fullRange = NSRange(location: 0, length: nsLine.length)
+        guard let match = regex.firstMatch(in: line, options: [], range: fullRange),
+              match.numberOfRanges == 4 else {
+            return [line]
+        }
+
+        let indentation = nsLine.substring(with: match.range(at: 1))
+        let marker = nsLine.substring(with: match.range(at: 2))
+        let content = nsLine.substring(with: match.range(at: 3))
+
+        guard content.localizedCaseInsensitiveContains("<br") else {
+            return [line]
+        }
+
+        guard let breakRegex = try? NSRegularExpression(pattern: #"<br\s*/?>"#, options: [.caseInsensitive]) else {
+            return [line]
+        }
+
+        let contentRange = NSRange(location: 0, length: (content as NSString).length)
+        let breakMatches = breakRegex.matches(in: content, options: [], range: contentRange)
+        guard !breakMatches.isEmpty else { return [line] }
+
+        var segments: [String] = []
+        var cursor = content.startIndex
+        for match in breakMatches {
+            guard let range = Range(match.range, in: content) else { continue }
+            segments.append(String(content[cursor..<range.lowerBound]))
+            cursor = range.upperBound
+        }
+        segments.append(String(content[cursor...]))
+
+        let continuationIndent = indentation + String(repeating: " ", count: marker.count + 1)
+        var output: [String] = []
+        output.reserveCapacity(segments.count)
+        for (index, segment) in segments.enumerated() {
+            let trimmedSegment = segment.trimmingCharacters(in: .whitespaces)
+            if index == 0 {
+                output.append("\(indentation)\(marker) \(trimmedSegment)")
+            } else {
+                output.append("\(continuationIndent)\(trimmedSegment)")
+            }
+        }
+        return output
     }
 
     private func sanitizeInlineCodeAngleBrackets(in line: String) -> String {
@@ -789,12 +844,14 @@ struct MarkdownWKWebView: NSViewRepresentable {
             let contentRange = match.range(at: 2)
             guard delimiterRange.location != NSNotFound, contentRange.location != NSNotFound else { continue }
 
+            let delimiter = nsLine.substring(with: delimiterRange)
             let content = nsLine.substring(with: contentRange)
             let escapedContent = content
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
 
-            output.replaceCharacters(in: match.range(at: 0), with: "<code>\(escapedContent)</code>")
+            // Keep markdown code-span delimiters intact so Ink still controls block/list parsing.
+            output.replaceCharacters(in: match.range(at: 0), with: "\(delimiter)\(escapedContent)\(delimiter)")
         }
 
         return String(output)
