@@ -764,12 +764,28 @@ struct MarkdownWKWebView: NSViewRepresentable {
                 continue
             }
 
-            let sanitizedComparators = line.replacingOccurrences(of: "<=", with: "&lt;=")
+            let sanitizedComparators = escapeNumericLessThanComparators(
+                in: line.replacingOccurrences(of: "<=", with: "&lt;=")
+            )
             let sanitizedInlineCode = sanitizeInlineCodeAngleBrackets(in: sanitizedComparators)
             sanitized.append(contentsOf: normalizeInlineBreaksInListItemLine(sanitizedInlineCode))
         }
 
         return sanitized
+    }
+
+    private func escapeNumericLessThanComparators(in line: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"<(?=\s*\d)"#, options: []) else {
+            return line
+        }
+
+        let range = NSRange(location: 0, length: (line as NSString).length)
+        return regex.stringByReplacingMatches(
+            in: line,
+            options: [],
+            range: range,
+            withTemplate: "&lt;"
+        )
     }
 
     private func normalizeInlineBreaksInListItemLine(_ line: String) -> [String] {

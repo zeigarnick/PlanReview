@@ -135,4 +135,25 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertTrue(html.contains("<li>Keep existing name indexes for search/backward compatibility.</li>"), "Expected second bullet to render as a separate list item.")
         XCTAssertFalse(html.contains("#### [MODIFY] [convex/admin/_organizationAdmin/hierarchy.ts]"), "Expected following markdown heading to be parsed, not rendered as raw text.")
     }
+
+    func testLessThanComparatorInParensDoesNotSwallowFollowingMarkdown() {
+        let markdown = """
+        #### [MODIFY] [convex/admin/_organizationAdmin/runningOrderDispatch.ts](convex/admin/_organizationAdmin/runningOrderDispatch.ts)
+        - Added intent-aware enqueue paths so manual and scheduled sends share one run engine while keeping scheduled enqueue internal-only.
+        - Implemented scheduled singleton dedupe, atomic guard order, cooldown re-enqueue for `partial|failed_terminal`, and a 24h rearm cap (<4 runs).
+        - Added lock-backed scheduled enqueue and truthful `lock_contended` state to prevent misleading `active_guard` outcomes under contention.
+
+        #### [MODIFY] [convex/admin/_organizationAdmin/reports.ts](convex/admin/_organizationAdmin/reports.ts)
+        - Routed manual report enqueue calls through explicit `dispatchIntent: "manual_report"` to prevent behavior drift.
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<code>partial|failed_terminal</code>"), "Expected inline code with pipe content to render safely.")
+        XCTAssertTrue(html.contains("24h rearm cap (&lt;4 runs)."), "Expected less-than comparator in parentheses to be HTML-escaped for safe WebKit parsing.")
+        XCTAssertTrue(html.contains("<li>Added lock-backed scheduled enqueue and truthful <code>lock_contended</code> state"), "Expected bullet after comparator line to render as a list item.")
+        XCTAssertTrue(html.contains("<h4>[MODIFY] <a href=\"convex/admin/_organizationAdmin/reports.ts\">convex/admin/_organizationAdmin/reports.ts</a></h4>"), "Expected following section heading to render as h4.")
+        XCTAssertFalse(html.contains("#### [MODIFY] [convex/admin/_organizationAdmin/reports.ts]"), "Expected following markdown heading to be parsed, not emitted as raw markdown text.")
+    }
 }
