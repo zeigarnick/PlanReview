@@ -156,4 +156,43 @@ final class MarkdownWKWebViewTableTests: XCTestCase {
         XCTAssertTrue(html.contains("<h4>[MODIFY] <a href=\"convex/admin/_organizationAdmin/reports.ts\">convex/admin/_organizationAdmin/reports.ts</a></h4>"), "Expected following section heading to render as h4.")
         XCTAssertFalse(html.contains("#### [MODIFY] [convex/admin/_organizationAdmin/reports.ts]"), "Expected following markdown heading to be parsed, not emitted as raw markdown text.")
     }
+
+    func testValidTableAllowsSingleBlankSpacerBetweenRows() {
+        let markdown = """
+        | Lane | Scope |
+        | --- | --- |
+        | direct-read | Incremental scope update |
+
+        | lane-1 | Current daily-log asset detail surface |
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<table>"), "Expected markdown table to render.")
+        XCTAssertTrue(html.contains("<td>direct-read</td>"), "Expected first data row to render in table.")
+        XCTAssertTrue(html.contains("<td>lane-1</td>"), "Expected row after single blank spacer line to remain part of the same table.")
+        XCTAssertFalse(html.contains("<p>| lane-1 |"), "Expected lane-1 row to not fall back to raw paragraph markdown.")
+    }
+
+    func testSpacerInsideValidTableDoesNotStartPseudoHeaderTable() {
+        let markdown = """
+        | Lane | Scope |
+        | --- | --- |
+        | direct-read | Incremental scope update |
+
+        | lane-1 | Current daily-log asset detail surface |
+        | lane-2 | Farm detail + transaction-table reference behavior |
+        | lane-3 | Reusable Daily Log multi-edit logic |
+        """
+
+        let view = MarkdownWKWebView(markdown: markdown)
+        let html = view.generatedHTMLForTesting()
+
+        XCTAssertTrue(html.contains("<td>direct-read</td>"), "Expected first row to render as body data.")
+        XCTAssertTrue(html.contains("<td>lane-1</td>"), "Expected lane-1 to render as a body row, not a header.")
+        XCTAssertTrue(html.contains("<td>lane-2</td>"), "Expected lane-2 to render as a body row.")
+        XCTAssertTrue(html.contains("<td>lane-3</td>"), "Expected lane-3 to render as a body row.")
+        XCTAssertFalse(html.contains("<th>lane-1</th>"), "Expected lane-1 to never be promoted into a pseudo-table header row.")
+    }
 }

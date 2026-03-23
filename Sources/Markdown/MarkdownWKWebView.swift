@@ -932,17 +932,33 @@ struct MarkdownWKWebView: NSViewRepresentable {
         guard isMarkdownTableSeparatorRow(lines[startIndex + 1]) else { return nil }
 
         var endIndex = startIndex + 2
-        while endIndex < lines.count, isPipeRowCandidate(lines[endIndex]) {
-            endIndex += 1
+        while endIndex < lines.count {
+            if isPipeRowCandidate(lines[endIndex]) {
+                endIndex += 1
+                continue
+            }
+
+            if isBlankTableSpacer(in: lines, at: endIndex) {
+                endIndex += 1
+                continue
+            }
+
+            break
         }
 
-        let block = Array(lines[startIndex..<endIndex])
+        let block = Array(lines[startIndex..<endIndex]).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
 
         if let htmlTable = convertMarkdownTableBlockToHTML(block) {
             return (lines: [htmlTable], nextIndex: endIndex)
         }
 
         return (lines: block, nextIndex: endIndex)
+    }
+
+    private func isBlankTableSpacer(in lines: [String], at index: Int) -> Bool {
+        guard index + 1 < lines.count else { return false }
+        guard lines[index].trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return isPipeRowCandidate(lines[index + 1])
     }
 
     private func convertMarkdownTableBlockToHTML(_ block: [String]) -> String? {
